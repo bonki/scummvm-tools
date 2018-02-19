@@ -390,6 +390,33 @@ private:
 	wxChoice* _nominalBitrate;
 };
 
+/**
+ * Presents advanced audio settings for the Opus compression format
+ *
+ */
+
+class ChooseAudioOptionsOpusPage : public WizardPage {
+public:
+	ChooseAudioOptionsOpusPage(Configuration &configuration);
+
+	wxWindow *CreatePanel(wxWindow *parent);
+
+	void onNext(wxWindow *panel);
+	void save(wxWindow *panel);
+
+private:
+	wxFlexGridSizer* _gridSizer;
+
+	wxStaticText* _bitrateLabel;
+	wxChoice* _bitrate;
+
+	wxStaticText* _bandwidthLabel;
+	wxChoice* _bandwidth;
+
+	wxStaticText* _complexityLabel;
+	wxChoice* _complexity;
+
+};
 
 /**
  * Used for outputting from the subthread

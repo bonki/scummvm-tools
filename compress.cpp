@@ -35,6 +35,9 @@
 #ifdef USE_VORBIS
 #include <vorbis/vorbisenc.h>
 #endif
+#ifdef USE_OPUS
+#include <opusenc.h>
+#endif
 #ifdef USE_FLAC
 #define FLAC__NO_DLL 1
 #include <FLAC/stream_encoder.h>
@@ -59,6 +62,13 @@ struct oggencparams {
 	bool silent;
 };
 
+struct opusencparams {
+	int targetBitr;
+	int bandwidth;
+	int complexity;
+	bool silent;
+};
+
 struct flaccparams {
 	int compressionLevel;
 	int blocksize;
@@ -71,9 +81,10 @@ struct rawtype {
 	uint8 bitsPerSample;
 };
 
-lameparams lameparms = { -1, -1, 32, VBR, algqualDef, vbrqualDef, 0, "lame" };
-oggencparams oggparms = { -1, -1, -1, (float)oggqualDef, 0 };
-flaccparams flacparms = { flacCompressDef, flacBlocksizeDef, false, false };
+lameparams    lameparms = { -1, -1, 32, VBR, algqualDef, vbrqualDef, 0, "lame" };
+oggencparams  oggparms  = { -1, -1, -1, (float)oggqualDef, 0 };
+opusencparams opusparms = { -1, -1, -1, false };
+flaccparams   flacparms = { flacCompressDef, flacBlocksizeDef, false, false };
 rawtype	rawAudioType = { false, false, 8 };
 
 const char *tempEncoded = TEMP_MP3;
@@ -220,6 +231,38 @@ void CompressionTool::encodeAudio(const char *inname, bool rawInput, int rawSamp
 		if (err) {
 			char buf[2048];
 			sprintf(buf, "Error in Vorbis encoder. (check parameters)\nVorbis Encoder Commandline:%s\n", fbuf);
+			throw ToolException(buf, err);
+		} else {
+			return;
+		}
+	}
+#endif
+
+#ifndef USE_OPUS
+	if (compmode == AUDIO_OPUS) {
+		tmp += sprintf(tmp, "opusenc ");
+		if (rawInput) {
+			tmp += sprintf(tmp, "--raw ");
+			tmp += sprintf(tmp, "--raw-chan=%d ", (rawAudioType.isStereo ? 2 : 1));
+			tmp += sprintf(tmp, "--raw-bits=%d ", rawAudioType.bitsPerSample);
+			tmp += sprintf(tmp, "--raw-rate=%d ", rawSamplerate);
+			tmp += sprintf(tmp, "--raw-endianness=%d ", (rawAudioType.isLittleEndian ? 0 : 1));
+		}
+
+		if (opusparms.targetBitr != -1)
+			tmp += sprintf(tmp, "--bitrate=%d ", opusparms.targetBitr);
+
+		if (opusparms.silent)
+			tmp += sprintf(tmp, "--quiet ");
+
+		tmp += sprintf(tmp, "\"%s\" ", inname);
+		tmp += sprintf(tmp, "\"%s\" ", outname);
+
+		err = spawnSubprocess(fbuf) != 0;
+
+		if (err) {
+			char buf[2048];
+			sprintf(buf, "Error in Opus encoder. (check parameters)\nOpus Encoder Commandline:%s\n", fbuf);
 			throw ToolException(buf, err);
 		} else {
 			return;
@@ -512,6 +555,96 @@ void CompressionTool::encodeRaw(const char *rawData, int length, int samplerate,
 			print("\nDone encoding file \"%s\"", outname);
 			print("\n\tFile length:  %dm %ds", (int)(totalSamples / samplerate / 60), (totalSamples / samplerate % 60));
 			print("\tAverage bitrate: %.1f kb/s\n", (8.0 * (double)totalBytes / 1000.0) / ((double)totalSamples / (double)samplerate));
+		}
+	}
+#endif
+
+#ifdef USE_OPUS
+	if (compmode == AUDIO_OPUS) {
+		int numChannels = (rawAudioType.isStereo ? 2 : 1);
+		int samplesPerChannel = length / ((rawAudioType.bitsPerSample / 8) * numChannels);
+
+		OggOpusEnc *opusEncoder;
+		OggOpusComments *opusComments;
+		int opusEncoderError;
+
+		opusComments = ope_comments_create();
+		opusEncoder = ope_encoder_create_file(outname, opusComments, samplerate, numChannels, 0, &opusEncoderError);
+		if (!opusEncoder) {
+			error("Error creating new OggOpus file '%s': %s", outname, ope_strerror(opusEncoderError));
+		}
+
+		if (opusparms.targetBitr != -1) {
+			// ope_encoder_ctl takes bitrate in bits/s, not kbits/s
+			opusEncoderError = ope_encoder_ctl(opusEncoder, OPUS_SET_BITRATE_REQUEST, opusparms.targetBitr * 1000);
+			if (opusEncoderError < 0) {
+				warning("Error setting Opus encoding bitrate to %i kbit/s: %s", opusparms.targetBitr, ope_strerror(opusEncoderError));
+			}
+		}
+
+		if (opusparms.bandwidth != -1) {
+			int opusRealBandwidth;
+			switch (opusparms.bandwidth) {
+				case 20: opusRealBandwidth = OPUS_BANDWIDTH_FULLBAND;      break;
+				case 12: opusRealBandwidth = OPUS_BANDWIDTH_SUPERWIDEBAND; break;
+				case  8: opusRealBandwidth = OPUS_BANDWIDTH_WIDEBAND;      break;
+				case  6: opusRealBandwidth = OPUS_BANDWIDTH_MEDIUMBAND;    break;
+				case  4: opusRealBandwidth = OPUS_BANDWIDTH_NARROWBAND;    break;
+				default: opusRealBandwidth = OPUS_AUTO;
+				         warning("Opus encoder does not support a cut-off frequency of %i, defaulting to 'auto' (this code should not be reached).", opusparms.bandwidth);
+			}
+			opusEncoderError = ope_encoder_ctl(opusEncoder, OPUS_SET_MAX_BANDWIDTH_REQUEST, opusRealBandwidth);
+			if (opusEncoderError < 0) {
+				warning("Error setting Opus encoding bandwidth to %i kHz: %s", opusRealBandwidth, ope_strerror(opusEncoderError));
+			}
+		}
+
+		if (opusparms.complexity != -1) {
+			opusEncoderError = ope_encoder_ctl(opusEncoder, OPUS_SET_COMPLEXITY_REQUEST, opusparms.complexity);
+			if (opusEncoderError < 0) {
+				warning("Error setting Opus encoding complexity to %i: %s", opusparms.complexity, ope_strerror(opusEncoderError));
+			}
+		}
+
+		// Hint to help the encoder identify silence.
+		opusEncoderError = ope_encoder_ctl(opusEncoder, OPUS_SET_LSB_DEPTH_REQUEST, rawAudioType.bitsPerSample);
+		if (opusEncoderError < 0) {
+			warning("Error setting Opus encoding LSB depth to %i: %s", rawAudioType.bitsPerSample, ope_strerror(opusEncoderError));
+		}
+
+		/*
+			TODO?
+			See https://www.opus-codec.org/docs/opus_api-1.2/group__opus__encoderctls.html#gaaa87ccee4ae46aa6c9528e03c5122b89
+			Can we detect if input is speech or music and OPUS_SET_SIGNAL accordingly or does this more harm than good?
+			Would audio duration as heuristic be good enough for this?
+		*/
+
+		// FIXME handle endianness
+		float *buffer = (float *)malloc(samplesPerChannel * numChannels * sizeof(float));
+		if (rawAudioType.bitsPerSample == 8) {
+			for (int i = 0; i < samplesPerChannel * numChannels; ++i) {
+				buffer[i] = (((const opus_uint8 *)rawData)[i] - 128) / 128.0f;
+			}
+		} else if (rawAudioType.bitsPerSample == 16) {
+			for (int i = 0; i < samplesPerChannel * numChannels; ++i) {
+				buffer[i] = ((const opus_int16 *)rawData)[i] / 32768.0f;
+			}
+		}
+
+		opusEncoderError = ope_encoder_write_float(opusEncoder, buffer, samplesPerChannel);
+		if (opusEncoderError != OPE_OK) {
+			free(buffer);
+			error("Error encoding OggOpus file: %s", ope_strerror(opusEncoderError));
+		}
+
+		ope_encoder_drain(opusEncoder);
+		ope_encoder_destroy(opusEncoder);
+		ope_comments_destroy(opusComments);
+		free(buffer);
+
+		if (!opusparms.silent) {
+			print("\nDone encoding file \"%s\"", outname);
+			print("\n\tFile length:  %dm %ds", (int)(samplesPerChannel / samplerate / 60), (samplesPerChannel / samplerate % 60));
 		}
 	}
 #endif
@@ -889,7 +1022,7 @@ void CompressionTool::setOggQuality(const std::string& arg) {
 
 	if (oggparms.quality < -1.f || oggparms.quality > 10.f)
 		throw ToolException("Quality out of bounds (-q), must be between -1 and 10.");
-	
+
 	// Also unset nominal bitrate so that quality is used
 	oggparms.nominalBitr = -1;
 }
@@ -930,6 +1063,58 @@ void CompressionTool::unsetOggMinBitrate() {
 
 void CompressionTool::unsetOggMaxBitrate() {
 	oggparms.maxBitr = -1;
+}
+
+// Opus
+void CompressionTool::setOpusBitrate(const std::string& arg) {
+	opusparms.targetBitr = atoi(arg.c_str());
+
+	if (opusparms.targetBitr == 0 && arg != "0")
+		throw ToolException("Bitrate (-b) must be a number.");
+
+	if (opusparms.targetBitr < 8 || opusparms.targetBitr > 160)
+		throw ToolException("Bitrate out of bounds (-b), must be between 8 and 160.");
+}
+
+void CompressionTool::setOpusBandwidth(const std::string& arg) {
+	opusparms.bandwidth = atoi(arg.c_str());
+
+	if (opusparms.bandwidth == 0 && arg != "0")
+		throw ToolException("Bandwidth (-w) must be a number.");
+
+	switch (opusparms.bandwidth) {
+		case 20: // OPUS_BANDWIDTH_FULLBAND, fall through
+		case 12: // OPUS_BANDWIDTH_SUPERWIDEBAND, fall through
+		case  8: // OPUS_BANDWIDTH_WIDEBAND, fall through
+		case  6: // OPUS_BANDWIDTH_MEDIUMBAND, fall through
+		case  4: // OPUS_BANDWIDTH_NARROWBAND
+			break;
+
+		default:
+			throw ToolException("Bandwidth out of bounds (-w), must be any of 20, 12, 8, 6, 4.");
+	}
+}
+
+void CompressionTool::setOpusComplexity(const std::string& arg) {
+	opusparms.complexity = atoi(arg.c_str());
+
+	if (opusparms.complexity == 0 && arg != "0")
+		throw ToolException("Complexity (-c) must be a number.");
+
+	if (opusparms.complexity < 0 || opusparms.complexity > 10)
+		throw ToolException("Complexity out of bounds (-c), must be between 0 and 10.");
+}
+
+void CompressionTool::unsetOpusBitrate() {
+	opusparms.targetBitr = -1;
+}
+
+void CompressionTool::unsetOpusBandwidth() {
+	opusparms.bandwidth = -1;
+}
+
+void CompressionTool::unsetOpusComplexity() {
+	opusparms.complexity = -1;
 }
 
 bool CompressionTool::processMp3Parms() {
@@ -1033,6 +1218,36 @@ bool CompressionTool::processOggParms() {
 	return true;
 }
 
+bool CompressionTool::processOpusParms() {
+	while (!_arguments.empty()) {
+		std::string arg = _arguments.front();
+		_arguments.pop_front();
+
+		if (arg == "-b") {
+			if (_arguments.empty())
+				throw ToolException("Could not parse command line options, expected value after -b");
+			setOpusBitrate(_arguments.front());
+			_arguments.pop_front();
+		} else if (arg == "-w") {
+			if (_arguments.empty())
+				throw ToolException("Could not parse command line options, expected value after -w");
+			setOpusBandwidth(_arguments.front());
+			_arguments.pop_front();
+		} else if (arg == "-c") {
+			if (_arguments.empty())
+				throw ToolException("Could not parse command line options, expected value after -c");
+			setOpusComplexity(_arguments.front());
+			_arguments.pop_front();
+		} else if (arg == "--silent") {
+			opusparms.silent = 1;
+		} else {
+			_arguments.push_front(arg);	//put back the non-audio argument we popped.
+			break;
+		}
+	}
+	return true;
+}
+
 bool CompressionTool::processFlacParms(){
 	while (!_arguments.empty()) {
 		std::string arg = _arguments.front();
@@ -1097,6 +1312,8 @@ void CompressionTool::parseAudioArguments() {
 		_format = AUDIO_MP3;
 	else if (_arguments.front() == "--vorbis")
 		_format = AUDIO_VORBIS;
+	else if (_arguments.front() == "--opus")
+		_format = AUDIO_OPUS;
 	else if (_arguments.front() == "--flac")
 		_format = AUDIO_FLAC;
 	else
@@ -1115,6 +1332,10 @@ void CompressionTool::parseAudioArguments() {
 		if (!processOggParms())
 			throw ToolException("Could not parse command line arguments, use --help for options");
 		break;
+	case AUDIO_OPUS:
+		if (!processOpusParms())
+			throw ToolException("Could not parse command line arguments, use --help for options");
+		break;
 	case AUDIO_FLAC:
 		if (!processFlacParms())
 			throw ToolException("Could not parse arguments: Use --help for options");
@@ -1131,6 +1352,9 @@ void CompressionTool::setTempFileName() {
 		break;
 	case AUDIO_VORBIS:
 		tempEncoded = TEMP_OGG;
+		break;
+	case AUDIO_OPUS:
+		tempEncoded = TEMP_OPUS;
 		break;
 	case AUDIO_FLAC:
 		tempEncoded = TEMP_FLAC;
@@ -1155,6 +1379,8 @@ std::string CompressionTool::getHelp() const {
 		os << " --mp3        encode to MP3 format (default)\n";
 	if (_supportedFormats & AUDIO_VORBIS)
 		os << " --vorbis     encode to Vorbis format\n";
+	if (_supportedFormats & AUDIO_OPUS)
+		os << " --opus       encode to Opus format\n";
 	if (_supportedFormats & AUDIO_FLAC)
 		os << " --flac       encode to Flac format\n";
 	os << "(If one of these is specified, it must be the first parameter.)\n";
@@ -1205,6 +1431,8 @@ const char *audio_extensions(AudioFormat format) {
 		return ".mp3";
 	case AUDIO_VORBIS:
 		return ".ogg";
+	case AUDIO_OPUS:
+		return ".opus";
 	case AUDIO_FLAC:
 		return ".fla";
 	case AUDIO_NONE:
@@ -1221,6 +1449,8 @@ int compression_format(AudioFormat format) {
 		return 2;
 	case AUDIO_FLAC:
 		return 3;
+	case AUDIO_OPUS:
+		return 4;
 	case AUDIO_NONE:
 	default:
 		throw ToolException("Unknown compression format");

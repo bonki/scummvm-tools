@@ -70,6 +70,7 @@ _srcdir=`dirname $0`
 # Default lib behavior yes/no/auto
 _vorbis=auto
 _tremor=auto
+_opus=auto
 _flac=auto
 _mad=auto
 _zlib=auto
@@ -352,6 +353,9 @@ Optional Libraries:
   --with-tremor-prefix=DIR Prefix where tremor is installed (optional)
   --disable-tremor         disable tremor support [autodetect]
 
+  --with-opus-prefix=DIR   Prefix where libopusenc is installed (optional)
+  --disable-opus           disable libopusenc support [autodetect]
+
   --with-mad-prefix=DIR    Prefix where libmad is installed (optional)
   --disable-mad            disable libmad (MP3) support [autodetect]
 
@@ -393,6 +397,8 @@ for ac_option in $@; do
 	--disable-vorbis)         _vorbis=no      ;;
 	--enable-tremor)          _tremor=yes     ;;
 	--disable-tremor)         _tremor=no      ;;
+	--enable-opus)            _opus=yes       ;;
+	--disable-opus)           _opus=no        ;;
 	--enable-flac)            _flac=yes       ;;
 	--disable-flac)           _flac=no        ;;
 	--enable-mad)             _mad=yes        ;;
@@ -424,6 +430,11 @@ for ac_option in $@; do
 		arg=`echo $ac_option | cut -d '=' -f 2`
 		TREMOR_CFLAGS="-I$arg/include"
 		TREMOR_LIBS="-L$arg/lib"
+		;;
+	--with-opus-prefix=*)
+		arg=`echo $ac_option | cut -d '=' -f 2`
+		OPUS_CFLAGS="-I$arg/include"
+		OPUS_LIBS="-L$arg/lib"
 		;;
 	--with-flac-prefix=*)
 		arg=`echo $ac_option | cut -d '=' -f 2`
@@ -1406,6 +1417,28 @@ else
 fi
 add_to_config_mk_if_yes "$_tremor" 'USE_TREMOR = 1'
 echo "$_tremor"
+
+#
+# Check for Opus
+#
+echocheck "Opus"
+OPUS_LIBS="$OPUS_LIBS `pkg-config --libs opusfile,libopusenc 2>> "$TMPLOG"`"
+OPUS_CFLAGS="$OPUS_CFLAGS `pkg-config --cflags opusfile,libopusenc 2>> "$TMPLOG"`"
+if test "$_opus" = auto ; then
+	_opus=no
+	cat > $TMPC << EOF
+#include <opusfile.h>
+#include <opusenc.h>
+int main(void) { return 0; }
+EOF
+	cc_check $OPUS_CFLAGS $OPUS_LIBS && _opus=yes
+fi
+if test "$_opus" = yes ; then
+	LIBS="$LIBS $OPUS_LIBS"
+	INCLUDES="$INCLUDES $OPUS_CFLAGS"
+fi
+define_in_config_if_yes "$_opus" 'USE_OPUS'
+echo "$_opus"
 
 #
 # Check for FLAC

@@ -42,6 +42,7 @@ enum {
 #define TEMP_RAW	"tempfile.raw"
 #define TEMP_MP3	"tempfile.mp3"
 #define TEMP_OGG	"tempfile.ogg"
+#define TEMP_OPUS	"tempfile.opus"
 #define TEMP_FLAC	"tempfile.fla"
 
 
@@ -52,11 +53,12 @@ enum {
  */
 enum AudioFormat {
 	AUDIO_VORBIS = 1 << 0,
-	AUDIO_FLAC   = 1 << 1,
-	AUDIO_MP3    = 1 << 2,
+	AUDIO_OPUS   = 1 << 1,
+	AUDIO_FLAC   = 1 << 2,
+	AUDIO_MP3    = 1 << 3,
 
 	AUDIO_NONE = 0,
-	AUDIO_ALL = AUDIO_VORBIS | AUDIO_FLAC | AUDIO_MP3
+	AUDIO_ALL = AUDIO_VORBIS | AUDIO_OPUS | AUDIO_FLAC | AUDIO_MP3
 };
 
 enum CompressionType {
@@ -115,10 +117,18 @@ public:
 	void unsetOggMinBitrate();
 	void unsetOggMaxBitrate();
 
+	// Opus
+	void setOpusBitrate(const std::string&);
+	void setOpusBandwidth(const std::string&);
+	void setOpusComplexity(const std::string&);
+	void unsetOpusBitrate();
+	void unsetOpusBandwidth();
+	void unsetOpusComplexity();
 
 public:
 	bool processMp3Parms();
 	bool processOggParms();
+	bool processOpusParms();
 	bool processFlacParms();
 
 	void setTempFileName();

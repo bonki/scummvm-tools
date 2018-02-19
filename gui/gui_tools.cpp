@@ -182,6 +182,22 @@ void ToolGUI::run(const Configuration &conf) const {
 			compression->unsetOggMaxBitrate();
 		else
 			compression->setOggMaxBitrate ( (const char *)conf.oggMaxBitrate.mb_str() );
+
+		// Opus
+		if (conf.opusBitrate == wxT("Default"))
+			compression->unsetOpusBitrate();
+		else
+			compression->setOpusBitrate((const char *)conf.opusBitrate.mb_str());
+
+		if (conf.opusBandwidth == wxT("Default"))
+			compression->unsetOpusBandwidth();
+		else
+			compression->setOpusBandwidth((const char *)conf.opusBandwidth.mb_str());
+
+		if (conf.opusComplexity == wxT("Default"))
+			compression->unsetOpusComplexity();
+		else
+			compression->setOpusComplexity((const char *)conf.opusComplexity.mb_str());
 	}
 
 	if (conf.multipleRuns && supportsMultipleRuns() && conf.inputFilePaths.size() == 1) {

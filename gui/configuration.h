@@ -104,12 +104,17 @@ struct Configuration {
 	wxString flacCompressionLevel;
 	wxString flacBlockSize;
 
-	// flac
+	// vorbis
 	bool useOggQuality;
 	wxString oggQuality;
 	wxString oggMinBitrate;
 	wxString oggAvgBitrate;
 	wxString oggMaxBitrate;
+
+	// Opus
+	wxString opusBitrate;
+	wxString opusBandwidth;
+	wxString opusComplexity;
 };
 
 #endif

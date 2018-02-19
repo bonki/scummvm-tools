@@ -784,6 +784,8 @@ wxWindow *ChooseAudioFormatPage::CreatePanel(wxWindow *parent) {
 
 	if (tool->supportsAudioFormat(AUDIO_VORBIS))
 		choices.Add(wxT("Vorbis"));
+	if (tool->supportsAudioFormat(AUDIO_OPUS))
+		choices.Add(wxT("Opus"));
 	if (tool->supportsAudioFormat(AUDIO_FLAC))
 		choices.Add(wxT("FLAC"));
 	if (tool->supportsAudioFormat(AUDIO_MP3))
@@ -804,10 +806,12 @@ wxWindow *ChooseAudioFormatPage::CreatePanel(wxWindow *parent) {
 	// Load already set values
 	if (_configuration.selectedAudioFormat == AUDIO_VORBIS)
 		format->SetSelection(0);
-	else if (_configuration.selectedAudioFormat == AUDIO_FLAC)
+	else if (_configuration.selectedAudioFormat == AUDIO_OPUS)
 		format->SetSelection(1);
-	else if (_configuration.selectedAudioFormat == AUDIO_MP3)
+	else if (_configuration.selectedAudioFormat == AUDIO_FLAC)
 		format->SetSelection(2);
+	else if (_configuration.selectedAudioFormat == AUDIO_MP3)
+		format->SetSelection(3);
 
 	advanced->SetValue(_configuration.advancedAudioSettings);
 
@@ -826,6 +830,8 @@ void ChooseAudioFormatPage::save(wxWindow *panel) {
 
 	if (format->GetStringSelection() == wxT("Vorbis"))
 		_configuration.selectedAudioFormat = AUDIO_VORBIS;
+	else if (format->GetStringSelection() == wxT("Opus"))
+		_configuration.selectedAudioFormat = AUDIO_OPUS;
 	else if (format->GetStringSelection() == wxT("FLAC"))
 		_configuration.selectedAudioFormat = AUDIO_FLAC;
 	else if (format->GetStringSelection() == wxT("MP3"))
@@ -842,6 +848,8 @@ void ChooseAudioFormatPage::onNext(wxWindow *panel) {
 
 		if (format->GetStringSelection() == wxT("Vorbis"))
 			switchPage(new ChooseAudioOptionsVorbisPage(_configuration));
+		else if (format->GetStringSelection() == wxT("Opus"))
+			switchPage(new ChooseAudioOptionsOpusPage(_configuration));
 		else if (format->GetStringSelection() == wxT("FLAC"))
 			switchPage(new ChooseAudioOptionsFlacPage(_configuration));
 		else if (format->GetStringSelection() == wxT("MP3"))
@@ -1309,6 +1317,103 @@ void ChooseAudioOptionsVorbisPage::onChangeTargetType(wxCommandEvent &evt) {
 }
 
 void ChooseAudioOptionsVorbisPage::onNext(wxWindow *panel) {
+	switchPage(new ProcessPage(_configuration));
+}
+
+// Page to choose Opus compression options
+
+ChooseAudioOptionsOpusPage::ChooseAudioOptionsOpusPage(Configuration &config)
+	: WizardPage(config)
+{
+}
+
+wxWindow *ChooseAudioOptionsOpusPage::CreatePanel(wxWindow *parent) {
+	wxWindow *panel = WizardPage::CreatePanel(parent);
+
+	wxSizer *sizer = new wxBoxSizer(wxVERTICAL);
+
+	// grid {
+	_gridSizer = new wxFlexGridSizer(5, 2, 10, 25);
+	_gridSizer->AddGrowableCol(1);
+	// } grid
+
+	// target bitrate {
+	const int possibleBitrateCount = 1 + (160 / 8); // "Default" + rest
+	wxString possibleBitrates[possibleBitrateCount];
+	possibleBitrates[0] = wxT("Default");
+	for (int i = 1; i < possibleBitrateCount; ++i) {
+		possibleBitrates[i] << i*8;
+	}
+
+	_gridSizer->Add(new wxStaticText(panel, wxID_ANY, wxT("Bitrate (kbit/s):")));
+
+	_bitrate = new wxChoice(
+		panel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+		possibleBitrateCount, possibleBitrates, 0, wxDefaultValidator, wxT("Bitrate"));
+	_gridSizer->Add(_bitrate, wxSizerFlags().Expand().Border(wxRIGHT, 100));
+	// } target bitrate
+
+	// target bandwidth {
+	wxString bandwidths[] = {
+		wxT("Default"),
+		wxT("20"),
+		wxT("12"),
+		wxT("8"),
+		wxT("6"),
+		wxT("4")
+	};
+
+	_gridSizer->Add(new wxStaticText(panel, wxID_ANY, wxT("Bandwidth (kHz):")));
+
+	_bandwidth = new wxChoice(
+		panel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+		sizeof bandwidths / sizeof *bandwidths, bandwidths, 0, wxDefaultValidator, wxT("Bandwidth")
+	);
+	_gridSizer->Add(_bandwidth, wxSizerFlags().Expand().Border(wxRIGHT, 100));
+	// } target bandwidth
+
+
+	// complexity {
+	const int possibleComplexityCount = 1 + 11; // "Default" + 10 complexities
+	wxString possibleComplexities[possibleComplexityCount];
+	possibleComplexities[0] = wxT("Default");
+	for (int i = 1; i < possibleComplexityCount; ++i) {
+		possibleComplexities[i] << i-1;
+	}
+
+	_complexityLabel = new wxStaticText(panel, wxID_ANY, wxT("Complexity:"));
+	_gridSizer->Add(_complexityLabel);
+
+	_complexity = new wxChoice(
+		panel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+	  possibleComplexityCount, possibleComplexities, 0, wxDefaultValidator, wxT("Complexity")
+	);
+	_gridSizer->Add(_complexity, wxSizerFlags().Expand().Border(wxRIGHT, 100));
+	// } complexity
+
+	// Finish the window
+	sizer->Add(_gridSizer, wxSizerFlags().Expand());
+	SetAlignedSizer(panel, sizer);
+
+	// Load settings
+	_bitrate->SetStringSelection(_configuration.opusBitrate);
+	_bandwidth->SetStringSelection(_configuration.opusBandwidth);
+	_complexity->SetStringSelection(_configuration.opusComplexity);
+
+	return panel;
+}
+
+void ChooseAudioOptionsOpusPage::save(wxWindow *panel) {
+	wxChoice *bitrate    = static_cast<wxChoice *>(panel->FindWindowByName(wxT("Bitrate")));
+	wxChoice *bandwidth  = static_cast<wxChoice *>(panel->FindWindowByName(wxT("Bandwidth")));
+	wxChoice *complexity = static_cast<wxChoice *>(panel->FindWindowByName(wxT("Complexity")));
+
+	_configuration.opusBitrate    = bitrate->GetStringSelection();
+	_configuration.opusBandwidth  = bandwidth->GetStringSelection();
+	_configuration.opusComplexity = complexity->GetStringSelection();
+}
+
+void ChooseAudioOptionsOpusPage::onNext(wxWindow *panel) {
 	switchPage(new ProcessPage(_configuration));
 }
 

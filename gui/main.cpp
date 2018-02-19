@@ -631,13 +631,15 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(wxWindow *parent, Configuration &
 {
 	wxNotebook *notebook = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP);
 
-	_mp3 = new ChooseAudioOptionsMp3Page(defaults);
-	_flac = new ChooseAudioOptionsFlacPage(defaults);
+	_mp3    = new ChooseAudioOptionsMp3Page(defaults);
+	_flac   = new ChooseAudioOptionsFlacPage(defaults);
 	_vorbis = new ChooseAudioOptionsVorbisPage(defaults);
+	_opus   = new ChooseAudioOptionsOpusPage(defaults);
 
-	notebook->AddPage(_mp3panel = _mp3->CreatePanel(notebook), wxT("MP3"));
-	notebook->AddPage(_flacpanel = _flac->CreatePanel(notebook), wxT("Flac"));
+	notebook->AddPage(_mp3panel    = _mp3->CreatePanel(notebook),    wxT("MP3"));
+	notebook->AddPage(_flacpanel   = _flac->CreatePanel(notebook),   wxT("Flac"));
 	notebook->AddPage(_vorbispanel = _vorbis->CreatePanel(notebook), wxT("Vorbis"));
+	notebook->AddPage(_opuspanel   = _opus->CreatePanel(notebook),   wxT("Opus"));
 
 	wxSizer *topsizer = new wxBoxSizer(wxVERTICAL);
 
@@ -651,7 +653,9 @@ AdvancedSettingsDialog::~AdvancedSettingsDialog() {
 	_mp3->save(_mp3panel);
 	_flac->save(_flacpanel);
 	_vorbis->save(_vorbispanel);
+	_opus->save(_opuspanel);
 	delete _mp3;
 	delete _flac;
 	delete _vorbis;
+	delete _opus;
 }

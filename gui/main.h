@@ -261,6 +261,7 @@ protected:
 class ChooseAudioOptionsMp3Page;
 class ChooseAudioOptionsFlacPage;
 class ChooseAudioOptionsVorbisPage;
+class ChooseAudioOptionsOpusPage;
 
 class AdvancedSettingsDialog : public wxDialog
 {
@@ -277,6 +278,8 @@ protected:
 	wxWindow *_flacpanel;
 	ChooseAudioOptionsVorbisPage *_vorbis;
 	wxWindow *_vorbispanel;
+	ChooseAudioOptionsOpusPage *_opus;
+	wxWindow *_opuspanel;
 };
 
 #endif

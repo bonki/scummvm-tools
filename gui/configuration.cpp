@@ -60,6 +60,10 @@ Configuration::Configuration() {
 	oggAvgBitrate = wxT("24");
 	oggMaxBitrate = wxT("None");
 
+	// Opus params
+	opusBitrate    = wxT("Default");
+	opusBandwidth  = wxT("Default");
+	opusComplexity = wxT("Default");
 }
 
 Configuration::~Configuration() {
