@@ -155,6 +155,7 @@ std::string CompressScummSou::getOutputName() const {
 	switch (_format) {
 	case AUDIO_MP3:    return "monster.so3";
 	case AUDIO_VORBIS: return "monster.sog";
+	case AUDIO_OPUS:   return "monster.sop";
 	case AUDIO_FLAC:   return "monster.sof";
 	default:
 		throw ToolException("Unknown audio format");
