@@ -35,6 +35,7 @@
 
 #define OUTPUT_MP3  "TUCKER.SO3"
 #define OUTPUT_OGG  "TUCKER.SOG"
+#define OUTPUT_OPUS "TUCKER.SOP"
 #define OUTPUT_FLA  "TUCKER.SOF"
 
 struct CompressedData {
@@ -440,6 +441,10 @@ void CompressTucker::execute() {
 	case AUDIO_VORBIS:
 		tempEncoded = TEMP_OGG;
 		outpath.setFullName(OUTPUT_OGG);
+		break;
+	case AUDIO_OPUS:
+		tempEncoded = TEMP_OPUS;
+		outpath.setFullName(OUTPUT_OPUS);
 		break;
 	case AUDIO_FLAC:
 		tempEncoded = TEMP_FLAC;
